@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>SDGs不塑永續 - 淨灘</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      height: 100vh;
+      font-family: "Microsoft JhengHei", sans-serif;
+      background: linear-gradient(to bottom,
+        #81d4fa 0%,  /* 天空藍 */
+        #4fc3f7 40%, /* 海水藍 */
+        #29b6f6 60%, /* 深藍 */
+        #fdd835 85%, /* 沙金 */
+        #ffe082 100% /* 淺沙 */
+      );
+    }
+
+    /* ☀️ 太陽 */
+    #sun {
+      position: absolute;
+      top: 60px;
+      right: 120px;
+      width: 120px;
+      height: 120px;
+      background: radial-gradient(circle, #fff176 30%, #ffeb3b 60%, #fbc02d 90%);
+      border-radius: 50%;
+      box-shadow: 0 0 60px 20px rgba(255, 235, 59, 0.6);
+      animation: glow 3s ease-in-out infinite;
+    }
+
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 60px 20px rgba(255, 235, 59, 0.6); transform: scale(1); }
+      50% { box-shadow: 0 0 90px 30px rgba(255, 241, 118, 0.8); transform: scale(1.05); }
+    }
+
+    header {
+      position: absolute;
+      top: 10px;
+      left: 20px;
+      font-size: 28px;
+      font-weight: 900;
+      color: #004d40;
+      text-shadow: 1px 1px 3px rgba(255, 255, 255, 0.8);
+    }
+
+    /* 控制按鈕區 */
+    #controls {
+      position: absolute;
+      top: 60px;
+      left: 20px;
+    }
+
+    #controls button {
+      margin-right: 8px;
+      padding: 6px 12px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background-color: rgba(255, 255, 255, 0.8);
+      transition: background 0.2s;
+    }
+
+    #controls button:hover {
+      background-color: rgba(255, 255, 255, 1);
+    }
+
+    #scoreboard {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 8px 15px;
+      border-radius: 10px;
+      color: #2e7d32;
+      text-align: right;
+      line-height: 1.4em;
+    }
+
+    .trash {
+      position: absolute;
+      font-size: 36px;
+      cursor: pointer;
+      transition: transform 0.2s, opacity 0.2s;
+      opacity: 0.9;
+    }
+
+    .trash:hover {
+      transform: scale(1.3);
+      opacity: 1;
+    }
+
+    #message {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 36px;
+      font-weight: bold;
+      color: white;
+      text-shadow: 2px 2px 8px #000;
+      background: rgba(0, 128, 0, 0.7);
+      padding: 20px 40px;
+      border-radius: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="sun"></div>
+  <header>🌊 SDGs不塑永續 - 淨灘</header>
+
+  <div id="controls">
+    <button id="startBtn">🟢 開始</button>
+    <button id="pauseBtn">⏸️ 暫停</button>
+    <button id="restartBtn">🔄 重新開始</button>
+  </div>
+
+  <div id="scoreboard">
+    分數：0<br>
+    剩餘時間：3:00<br>
+    <span id="highscore">最高分數：0</span>
+  </div>
+
+  <div id="message">任務完成！</div>
+
+  <script>
+    // === 遊戲變數 ===
+    const trashIcons = [
+      { icon: "fa-bottle-water", color: "#42a5f5", score: 10 },
+      { icon: "fa-scroll", color: "#ffb300", score: 8 },
+      { icon: "fa-box", color: "#8d6e63", score: 15 },
+      { icon: "fa-bag-shopping", color: "#26c6da", score: 12 },
+      { icon: "fa-cube", color: "#9ccc65", score: 18 },
+      { icon: "fa-mug-hot", color: "#ef5350", score: 10 },
+      { icon: "fa-trash", color: "#9e9e9e", score: 5 }
+    ];
+
+    let score = 0;
+    let remainingTime = 3 * 60; // 🕒 3分鐘
+    let timer = null;
+    let spawnLoop = null;
+    let isPaused = true;
+
+    // 從 localStorage 讀取最高分
+    let highScore = parseInt(localStorage.getItem("beach_highscore")) || 0;
+
+    const scoreboard = document.getElementById("scoreboard");
+    const highscoreDisplay = document.getElementById("highscore");
+    const message = document.getElementById("message");
+
+    const startBtn = document.getElementById("startBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    // 顯示最高分
+    highscoreDisplay.textContent = `最高分數：${highScore}`;
+
+    // === 主功能 ===
+    function startGame() {
+      if (!isPaused) return;
+      isPaused = false;
+
+      // 倒數計時
+      if (!timer) {
+        timer = setInterval(() => {
+          if (!isPaused) {
+            remainingTime--;
+            const min = Math.floor(remainingTime / 60);
+            const sec = remainingTime % 60;
+            updateScoreboard(min, sec);
+            if (remainingTime <= 0) endGame();
+          }
+        }, 1000);
+      }
+
+      // 垃圾生成
+      if (!spawnLoop) {
+        spawnLoop = setInterval(() => {
+          if (!isPaused) spawnTrash();
+        }, 800);
+      }
+    }
+
+    function pauseGame() {
+      isPaused = true;
+    }
+
+    function restartGame() {
+      location.reload(); // 重新開始
+    }
+
+    // === 更新分數顯示 ===
+    function updateScoreboard(min, sec) {
+      scoreboard.innerHTML = `
+        分數：${score}<br>
+        剩餘時間：${min}:${sec.toString().padStart(2, '0')}<br>
+        <span id="highscore">最高分數：${highScore}</span>
+      `;
+    }
+
+    // === 垃圾生成 ===
+    function spawnTrash() {
+      const randomType = trashIcons[Math.floor(Math.random() * trashIcons.length)];
+      const trash = document.createElement("i");
+      trash.classList.add("fa-solid", randomType.icon, "trash");
+      trash.style.color = randomType.color;
+      trash.style.left = `${Math.random() * window.innerWidth * 0.9}px`;
+      trash.style.top = `-40px`;
+      trash.dataset.score = randomType.score;
+
+      document.body.appendChild(trash);
+
+      // 點擊加分
+      trash.addEventListener("click", function () {
+        if (isPaused) return;
+        score += parseInt(this.dataset.score);
+        this.remove();
+      });
+
+      // 落下動畫
+      const fallInterval = setInterval(() => {
+        if (isPaused) return;
+        const y = trash.offsetTop + 2;
+        trash.style.top = `${y}px`;
+        trash.style.transform = `rotate(${y}deg)`;
+        if (y > window.innerHeight - 50) {
+          clearInterval(fallInterval);
+          trash.remove();
+        }
+      }, 20);
+    }
+
+    // === 結束遊戲 ===
+    function endGame() {
+      clearInterval(timer);
+      clearInterval(spawnLoop);
+      document.querySelectorAll(".trash").forEach(t => t.remove());
+      message.style.display = "block";
+
+      // 更新最高分
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem("beach_highscore", highScore);
+      }
+
+      message.textContent = `🌟 任務完成！總分：${score}`;
+      updateScoreboard(0, 0);
+    }
+
+    // === 綁定按鈕 ===
+    startBtn.onclick = startGame;
+    pauseBtn.onclick = pauseGame;
+    restartBtn.onclick = restartGame;
+  </script>
+</body>
+</html>
